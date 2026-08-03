@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.venv/
+.env
+.browser-profile/
+credentials/*.json
+!credentials/.gitkeep
+run-report-*.json
+debug/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
