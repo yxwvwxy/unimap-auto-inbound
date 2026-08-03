@@ -22,7 +22,7 @@
 ## 安装（已在本机完成依赖安装的可跳过）
 
 ```bash
-cd ~/unimap-auto-inbound
+cd ~/Projects/unimap-auto-inbound
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -54,7 +54,7 @@ Apps Script 负责菜单确认；本机负责操作 UniUni（Google 脚本无法
 3. 本机保持运行：
 
 ```bash
-cd ~/unimap-auto-inbound
+cd ~/Projects/unimap-auto-inbound
 ./run.sh --watch
 ```
 
@@ -79,4 +79,4 @@ cd ~/unimap-auto-inbound
 
 ## 相关项目
 
-EWR 妥投 / DSP Tools 已拆到独立目录：`~/delivery-pivot`
+EWR 妥投 / DSP Tools 已拆到独立目录：`~/Projects/delivery-pivot`

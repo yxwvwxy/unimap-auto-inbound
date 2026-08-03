@@ -20,7 +20,7 @@ Apps Script **不能**直接操作 UniUni 网页（Microsoft 登录 + 页面点�
 3. 保存为：
 
 ```text
-~/unimap-auto-inbound/credentials/unimap-put-in-storage-google-service-account.json
+~/Projects/unimap-auto-inbound/credentials/unimap-put-in-storage-google-service-account.json
 ```
 
 4. 打开 JSON，找到 `client_email`（形如 `xxx@....iam.gserviceaccount.com`）  
@@ -31,7 +31,7 @@ Apps Script **不能**直接操作 UniUni 网页（Microsoft 登录 + 页面点�
 终端（保持开着）：
 
 ```bash
-cd ~/unimap-auto-inbound
+cd ~/Projects/unimap-auto-inbound
 ./run.sh --watch
 ```
 
