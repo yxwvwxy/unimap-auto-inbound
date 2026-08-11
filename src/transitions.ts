@@ -49,7 +49,8 @@ export const TRANSITION_STEPS: TransitionStep[] = [
     toLabel: "wrong address from receive",
   },
   {
-    fromStatuses: [212],
+    // 212 / 202 IN_TRANSIT -> deliver parcel apt -> 211
+    fromStatuses: [212, 202],
     nextTransition: "deliver parcel apt",
     extras: ["failReason"],
     toStatus: 211,

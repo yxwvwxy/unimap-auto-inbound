@@ -178,7 +178,7 @@ export async function readCurrentStatus(page: Page): Promise<number | null> {
   const body = await page.locator("body").innerText();
   blobs.unshift(body);
 
-  const known = [215, 213, 212, 211, 200, 199, 195, 255, 190, 1910];
+  const known = [215, 213, 212, 211, 202, 200, 199, 195, 255, 190, 1910];
   for (const code of known) {
     const re = new RegExp(`\\b${code}\\b`);
     if (blobs.some((b) => re.test(b))) {

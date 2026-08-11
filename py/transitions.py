@@ -22,8 +22,9 @@ TRANSITION_STEPS: List[TransitionStep] = [
     TransitionStep([199, 195, 1910], "parcel scan", 200, "parcel scanned"),
     # Mid-path nodes: resume from whichever status the parcel is already in
     TransitionStep([200], "wrong address cfm in dispatch", 212, "wrong address from receive"),
+    # 212 / 202 -> deliver parcel apt -> 211 (fail reason after Submit)
     TransitionStep(
-        [212],
+        [212, 202],
         "deliver parcel apt",
         211,
         "return office from transit",

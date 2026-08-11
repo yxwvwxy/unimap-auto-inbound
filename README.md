@@ -11,7 +11,7 @@
 | 190 / **255** | gateway processing | Operation Location | 199 |
 | 199 / **195** / **1910** | parcel scan / parcel scanned | Operation Location | 200 |
 | 200 | wrong address cfm in dispatch | Operation Location | 212 |
-| 212 | deliver parcel apt | Operation Location；Submit 后弹窗 fail reason=`parcel damaged` | 211 |
+| 212 / **202** | deliver parcel apt | Operation Location；Submit 后弹窗 fail reason=`parcel damaged` | 211 |
 | 211 | send parcel to storage | Operation Location + Network Node=`WH- JFK-005` | 213 |
 | 213 | parcel abandon | Operation Location | 215 |
 
