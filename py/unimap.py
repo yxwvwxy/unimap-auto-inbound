@@ -82,28 +82,227 @@ def wait_for_manual_login(page: Page) -> None:
         page.goto(config.UNIMAP_URL, wait_until="domcontentloaded")
 
 
+def _edit_order_modal(page: Page) -> Optional[Locator]:
+    """Visible Edit Order overlay/modal, if any (may not be Ant Design)."""
+    candidates = [
+        page.locator(
+            ".ant-modal:visible, .ant-modal-wrap:visible, [role='dialog']:visible"
+        ).filter(has_text=re.compile(r"edit\s*order", re.I)),
+        # Custom UniMap overlay: has Edit Order title + order search label
+        page.locator("div, section, aside").filter(
+            has_text=re.compile(r"Order No\s*/\s*unit No\s*/\s*parcel No", re.I)
+        ),
+        page.locator("div, section, aside").filter(
+            has=page.get_by_text(re.compile(r"Tracking Info", re.I))
+        ).filter(has_text=re.compile(r"edit\s*order", re.I)),
+    ]
+    for loc in candidates:
+        try:
+            if loc.count() > 0 and loc.last.is_visible():
+                return loc.last
+        except Exception:
+            continue
+    return None
+
+
+def _edit_order_root(page: Page) -> Locator:
+    """Prefer the open Edit Order modal; fall back to the whole page."""
+    modal = _edit_order_modal(page)
+    return modal if modal is not None else page.locator("body")
+
+
+def _is_edit_order_open(page: Page) -> bool:
+    # Strong signals from the Edit Order overlay (not the Menu tile)
+    markers = [
+        page.get_by_text(re.compile(r"Order No\s*/\s*unit No\s*/\s*parcel No", re.I)),
+        page.get_by_text(re.compile(r"^\s*Tracking Info\s*$", re.I)),
+        page.get_by_text(re.compile(r"^\s*Order Information\s*$", re.I)),
+        page.get_by_text(re.compile(r"^\s*Next Transition\s*$", re.I)),
+    ]
+    for marker in markers:
+        try:
+            if marker.count() > 0 and marker.first.is_visible():
+                return True
+        except Exception:
+            continue
+    if _edit_order_modal(page) is not None:
+        return True
+    return _find_order_search_input(page, required=False) is not None
+
+
+def _normalize_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def _locate_edit_order_click_point(page: Page) -> Optional[dict]:
+    """Find the orange EDIT ORDER card and return its center {x,y,w,h,tag}."""
+    return page.evaluate(
+        """() => {
+          const norm = (t) => (t || '').replace(/\\s+/g, ' ').trim();
+          const nodes = Array.from(
+            document.querySelectorAll('div,button,a,li,span,p,section,article')
+          );
+
+          // Candidates whose own text is exactly EDIT ORDER (the label or the card)
+          const exact = [];
+          for (const el of nodes) {
+            const text = norm(el.innerText);
+            if (!/^EDIT ORDER$/i.test(text)) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 8 || r.height < 8) continue;
+            if (r.bottom < 0 || r.top > window.innerHeight) continue;
+            if (r.right < 0 || r.left > window.innerWidth) continue;
+            exact.push({ el, r });
+          }
+          if (!exact.length) return null;
+
+          // Prefer a card-sized ancestor around the label (the orange tile).
+          // Typical tile ~80-220px; avoid the whole sidebar.
+          let best = null;
+          for (const { el, r } of exact) {
+            let card = el;
+            let cardR = r;
+            let p = el.parentElement;
+            for (let depth = 0; p && depth < 6; depth++, p = p.parentElement) {
+              const pr = p.getBoundingClientRect();
+              const pText = norm(p.innerText);
+              // Parent still only this tile (maybe icon + label), not whole menu
+              if (!/^EDIT ORDER$/i.test(pText) && pText.length > 24) break;
+              if (pr.width > 320 || pr.height > 320) break;
+              if (pr.width >= 60 && pr.height >= 50) {
+                card = p;
+                cardR = pr;
+                // keep walking a bit to reach the full orange tile if label is nested
+              }
+            }
+            const area = cardR.width * cardR.height;
+            // Prefer mid-size tiles over tiny text spans
+            const score = area;
+            if (!best || score > best.score) {
+              // but reject huge panels
+              if (cardR.width <= 320 && cardR.height <= 320 && cardR.width >= 50) {
+                best = {
+                  score,
+                  x: cardR.left + cardR.width / 2,
+                  y: cardR.top + cardR.height / 2,
+                  w: Math.round(cardR.width),
+                  h: Math.round(cardR.height),
+                  tag: card.tagName,
+                  text: norm(card.innerText).slice(0, 40),
+                };
+              }
+            }
+          }
+
+          // Fallback: click the smallest exact text box itself
+          if (!best) {
+            exact.sort(
+              (a, b) => a.r.width * a.r.height - b.r.width * b.r.height
+            );
+            const { el, r } = exact[0];
+            best = {
+              score: r.width * r.height,
+              x: r.left + r.width / 2,
+              y: r.top + r.height / 2,
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+              tag: el.tagName,
+              text: norm(el.innerText).slice(0, 40),
+            };
+          }
+          return best;
+        }"""
+    )
+
+
+def _click_point(page: Page, x: float, y: float) -> None:
+    """Hard mouse click at viewport coords — no auto-scroll."""
+    page.mouse.click(x, y)
+
+
 def go_to_edit_order(page: Page) -> None:
-    # Already on Edit Order search UI (top order input visible)
-    if _find_order_search_input(page, required=False):
+    page = ensure_live_page(page)
+    if _is_edit_order_open(page):
+        print("  Edit Order already open.")
         return
-    try:
-        _click_by_text(page, ["Edit Order", "edit order"])
+
+    if "dispatch.uniuni.com" in page.url and "/main" not in page.url:
+        page.goto(config.UNIMAP_URL, wait_until="domcontentloaded")
         page.wait_for_timeout(800)
-    except Exception as err:
-        # Stay on current page if menu label differs but search box exists
-        if _find_order_search_input(page, required=False):
-            print(f"  Note: Edit Order menu click skipped ({err})")
+
+    # Only switch to Menu rail if EDIT ORDER card is not already on screen
+    point = _locate_edit_order_click_point(page)
+    if not point:
+        try:
+            menu_tab = page.get_by_text(re.compile(r"^\s*Menu\s*$", re.I)).first
+            if menu_tab.count() > 0 and menu_tab.is_visible():
+                box = menu_tab.bounding_box()
+                if box:
+                    _click_point(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+                    page.wait_for_timeout(500)
+        except Exception:
+            pass
+        point = _locate_edit_order_click_point(page)
+
+    if not point:
+        raise RuntimeError(
+            "Could not locate the orange EDIT ORDER card on the Menu grid. "
+            "Leave the Menu page open so EDIT ORDER is visible."
+        )
+
+    x, y = float(point["x"]), float(point["y"])
+    print(
+        f"  Clicking EDIT ORDER card at ({x:.0f},{y:.0f}) "
+        f"size={point.get('w')}x{point.get('h')} tag={point.get('tag')}"
+    )
+    # Direct mouse click — do NOT scrollIntoView / Playwright auto-scroll
+    _click_point(page, x, y)
+    page.wait_for_timeout(1200)
+
+    for _ in range(20):
+        if _is_edit_order_open(page):
+            print("  Edit Order overlay open.")
             return
-        raise
+        page.wait_for_timeout(400)
+
+    if _find_order_search_input(page, required=False):
+        print("  Edit Order search box found.")
+        return
+
+    # One retry click (still no scrolling)
+    print("  Overlay not open yet — clicking EDIT ORDER once more...")
+    point2 = _locate_edit_order_click_point(page) or point
+    _click_point(page, float(point2["x"]), float(point2["y"]))
+    page.wait_for_timeout(1500)
+    if _is_edit_order_open(page) or _find_order_search_input(page, required=False):
+        print("  Edit Order overlay open.")
+        return
+
+    raise RuntimeError(
+        "Clicked EDIT ORDER but the overlay did not open. "
+        "Click the orange EDIT ORDER card once manually, then re-queue."
+    )
 
 
 def _find_order_search_input(page: Page, required: bool = True) -> Optional[Locator]:
+    root = _edit_order_root(page)
     candidates = [
-        page.get_by_placeholder(re.compile(r"order|tracking|单号|parcel|unit", re.I)),
-        page.locator("input[placeholder*='Order' i]"),
-        page.locator("input[placeholder*='order' i]"),
-        page.locator('input[type="search"]'),
-        page.locator(".ant-input").first,
+        # Label from screenshot: "Order No/unit No/parcel No"
+        root.get_by_placeholder(
+            re.compile(r"order|tracking|单号|parcel|unit|uus", re.I)
+        ),
+        root.locator("input[placeholder*='Order' i]"),
+        root.locator("input[placeholder*='order' i]"),
+        root.locator("input[placeholder*='parcel' i]"),
+        root.locator("input[placeholder*='unit' i]"),
+        root.locator('input[type="search"]'),
+        # Ant Design text inputs in modal / page (skip checkboxes etc.)
+        root.locator(
+            "input.ant-input:not([type='hidden']):not([type='checkbox']):not([type='radio'])"
+        ),
+        root.locator(
+            "input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='password'])"
+        ),
     ]
     input_el = _first_visible(candidates)
     if not input_el and required:
@@ -112,13 +311,17 @@ def _find_order_search_input(page: Page, required: bool = True) -> Optional[Loca
 
 
 def _click_search(page: Page) -> None:
+    root = _edit_order_root(page)
     search_btn = _first_visible(
         [
-            page.get_by_role("button", name=re.compile(r"search|查询|搜", re.I)),
-            page.locator("button:has-text('Search')"),
-            page.locator(".ant-btn:has-text('Search')"),
-            page.locator("[aria-label*='search' i]"),
-            page.locator(".anticon-search").locator("xpath=ancestor::button[1]"),
+            root.get_by_role("button", name=re.compile(r"search|查询|搜", re.I)),
+            root.locator("button:has-text('Search')"),
+            root.locator(".ant-btn:has-text('Search')"),
+            root.locator("[aria-label*='search' i]"),
+            root.locator(".anticon-search").locator("xpath=ancestor::button[1]"),
+            root.locator(".anticon-search").locator(
+                "xpath=ancestor::*[self::button or self::span][1]"
+            ),
         ]
     )
     if search_btn:
@@ -129,17 +332,24 @@ def _click_search(page: Page) -> None:
 
 
 def search_order(page: Page, order_no: str) -> None:
+    page = ensure_live_page(page)
     go_to_edit_order(page)
     inp = _find_order_search_input(page)
     assert inp is not None
+    print(f"  Searching order {order_no}...")
     inp.click(click_count=3)
     inp.fill(order_no)
     _click_search(page)
-    # Wait for tracking / order panel
+    # Wait for tracking / order panel (searches can be slow)
     try:
-        page.locator("text=/Tracking Info|ORDER_RECEIVED|Order Information/i").first.wait_for(
-            state="visible", timeout=8000
-        )
+        page.locator(
+            "text=/Tracking Info|ORDER_RECEIVED|Order Information|Batch Info/i"
+        ).first.wait_for(state="visible", timeout=15000)
+    except Exception:
+        pass
+    # Wait out loading spinner if present
+    try:
+        page.locator(".ant-spin-spinning").first.wait_for(state="hidden", timeout=15000)
     except Exception:
         pass
     try:
