@@ -79,79 +79,10 @@ export async function waitForManualLogin(page: Page): Promise<void> {
   }
 }
 
-async function isEditOrderOpen(page: Page): Promise<boolean> {
-  const markers = [
-    page.getByText(/Order No\s*\/\s*unit No\s*\/\s*parcel No/i),
-    page.getByText(/^\s*Tracking Info\s*$/i),
-    page.getByText(/^\s*Order Information\s*$/i),
-    page.getByText(/^\s*Next Transition\s*$/i),
-  ];
-  for (const marker of markers) {
-    if ((await marker.count()) > 0 && (await marker.first().isVisible().catch(() => false))) {
-      return true;
-    }
-  }
-  return false;
-}
-
-async function findEditOrderTile(page: Page) {
-  const candidates = [
-    page.locator("div, button, a, li, span").filter({ hasText: /^\s*EDIT\s*ORDER\s*$/i }),
-    page.locator("div, button, a, li").filter({ hasText: /EDIT\s*ORDER/i }),
-    page.getByText(/EDIT\s*ORDER/i),
-  ];
-  return firstVisible(candidates);
-}
-
 export async function goToEditOrder(page: Page): Promise<void> {
-  if (await isEditOrderOpen(page)) {
-    console.log("  Edit Order already open.");
-    return;
-  }
-
-  try {
-    const menuTab = page.getByText(/^\s*Menu\s*$/i).first();
-    if ((await menuTab.count()) > 0 && (await menuTab.isVisible().catch(() => false))) {
-      await menuTab.click();
-      await page.waitForTimeout(400);
-    }
-  } catch {
-    // ignore
-  }
-
-  let tile = await findEditOrderTile(page);
-  if (!tile) {
-    try {
-      const fav = page.getByText(/^\s*Favorite\s*$/i).first();
-      if ((await fav.count()) > 0 && (await fav.isVisible().catch(() => false))) {
-        await fav.click();
-        await page.waitForTimeout(400);
-        tile = await findEditOrderTile(page);
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  if (!tile) {
-    throw new Error(
-      "Could not find the EDIT ORDER tile on the Menu page. Make sure the left Menu grid is visible.",
-    );
-  }
-
-  console.log("  Clicking EDIT ORDER tile...");
-  await tile.click();
-  await page.waitForTimeout(1200);
-
-  for (let i = 0; i < 15; i++) {
-    if (await isEditOrderOpen(page)) {
-      console.log("  Edit Order overlay open.");
-      return;
-    }
-    await page.waitForTimeout(400);
-  }
-
-  throw new Error("Clicked EDIT ORDER but the Edit Order overlay did not open.");
+  // Left menu "Edit Order"
+  await clickByText(page, ["Edit Order", "edit order"]);
+  await page.waitForTimeout(800);
 }
 
 async function findOrderSearchInput(page: Page): Promise<Locator> {
@@ -247,7 +178,7 @@ export async function readCurrentStatus(page: Page): Promise<number | null> {
   const body = await page.locator("body").innerText();
   blobs.unshift(body);
 
-  const known = [215, 213, 212, 211, 202, 200, 199, 195, 255, 190, 1910];
+  const known = [215, 213, 212, 211, 200, 199, 195, 255, 190, 1910];
   for (const code of known) {
     const re = new RegExp(`\\b${code}\\b`);
     if (blobs.some((b) => re.test(b))) {
