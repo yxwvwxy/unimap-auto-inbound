@@ -65,6 +65,17 @@ cd ~/Projects/unimap-auto-inbound
    - 要中止：菜单 **停止连续执行**（当前单跑完，剩余 pending 标 cancelled）  
    - 本批结束后 **terminal / 浏览器都不用关**：再选单号点菜单即可
 
+## 从 SI 网站触发（本机仍负责点 UniMap）
+
+[us.si.uniuni.com](https://us.si.uniuni.com/) 没有源码权限时，用浏览器脚本把单号发给本机：
+
+1. 本机双击「一键入库-启动」，登录 UniMap，终端出现 `Local trigger listening on http://127.0.0.1:18787`
+2. Chrome 安装 [Tampermonkey](https://www.tampermonkey.net/)
+3. 新建脚本，把 [`userscript/si-auto-inbound.user.js`](userscript/si-auto-inbound.user.js) 全文贴进去并保存
+4. 打开 SI 网站，右下角会出现 **一键入库（本机）** 面板：抓取/粘贴单号 → 开始入库
+
+Sheet 菜单仍然可用，两套入口共用同一台本机浏览器。
+
 ## 其它命令
 
 ```bash

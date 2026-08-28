@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from py import config
+from py.hub import InboundHub
+from py.local_api import DEFAULT_PORT, start_local_api
 from py.sheets import BlankRowError, SheetOrder, get_sheets_client, load_orders
 from py.unimap import (
     advance_order_to_target,
@@ -74,104 +76,109 @@ def process_one(page, item: SheetOrder, dry_run: bool, sheets=None) -> dict:
     }
 
 
+def run_batch(page, dry_run: bool, entries, queue, mark_sheet: bool) -> None:
+    """Run one pending batch. `queue` is SheetsClient or InboundHub."""
+    print(f"\n======= 新批次：{len(entries)} 单待执行 =======")
+    for i, e in enumerate(entries, start=1):
+        print(f"  {i}. {e['order_no']} (sheet row {e['row_number']})")
+    queue.set_batch_flag("running", f"batch size={len(entries)}")
+
+    done_count = 0
+    stopped = False
+    sheets = queue if mark_sheet else None
+
+    for idx, entry in enumerate(entries, start=1):
+        if queue.is_stop_requested():
+            cancelled = queue.cancel_remaining_pending()
+            queue.set_batch_flag(
+                "stopped",
+                f"stopped after {done_count} done, cancelled={cancelled}",
+            )
+            print(
+                f"\n已停止连续执行（完成 {done_count} 单，取消剩余 {cancelled} 单）。"
+                "\n浏览器保持打开。重新选单即可继续。"
+            )
+            stopped = True
+            break
+
+        item = SheetOrder(row_number=entry["row_number"], order_no=entry["order_no"])
+        print(
+            f"\n--- [{idx}/{len(entries)}] {item.order_no} "
+            f"(sheet row {item.row_number}) ---"
+        )
+        queue.update_queue_entry(
+            entry["queue_row"], "running", f"batch {idx}/{len(entries)}"
+        )
+
+        try:
+            result = process_one(page, item, dry_run=dry_run, sheets=sheets)
+        except Exception as err:
+            queue.update_queue_entry(entry["queue_row"], "error", str(err))
+            queue.cancel_remaining_pending("cancelled after error")
+            queue.set_batch_flag("error", str(err))
+            print(f"\n处理异常：{err}")
+            print("浏览器保持打开。terminal 仍在监听，可重新选单号开始。")
+            stopped = True
+            break
+
+        if not result["ok"]:
+            err = result.get("error") or "failed"
+            queue.update_queue_entry(entry["queue_row"], "error", err)
+            queue.cancel_remaining_pending("cancelled after error")
+            queue.set_batch_flag("error", err)
+            print(f"\n本单失败，已停止本批。原因：{err}")
+            print("浏览器保持打开，将直接可用于下一批评列（不用重启）。")
+            stopped = True
+            break
+
+        queue.update_queue_entry(
+            entry["queue_row"],
+            "done",
+            f"final={result.get('final_status')}",
+        )
+        done_count += 1
+        print(f"  队列进度 {done_count}/{len(entries)}，继续下一单号搜索…")
+
+    if not stopped:
+        queue.set_batch_flag(
+            "done", f"batch complete done={done_count}/{len(entries)}"
+        )
+        print(
+            f"\n本批完成：{done_count}/{len(entries)} 单。"
+            "\n浏览器保持打开。可再选单开始下一批。"
+        )
+
+
 def run_watch(page, dry_run: bool, poll_seconds: float) -> int:
     sheets = get_sheets_client()
+    hub = InboundHub()
+    start_local_api(hub)
     print(
-        "Watching Sheet queue「入库队列」.\n"
-        "选中 A 列起始单号 → 一键入库 → 从选中单号开始\n"
-        "会把该行起直到空行的所有单号写入队列，再按序搜索入库。\n"
-        "停止：菜单「停止连续执行」。浏览器保持打开，继续搜下一单。\n"
-        "本批结束后 terminal 不用关。Ctrl+C 退出监听。\n"
+        "Watching 本机接口 + Sheet queue「入库队列」。\n"
+        f"SI 页面脚本 → http://127.0.0.1:{DEFAULT_PORT}/queue\n"
+        "或 Sheet：选中 A 列起始单号 → 一键入库 → 从选中单号开始\n"
+        "真正点 UniMap 仍在本机浏览器。Ctrl+C 退出监听。\n"
     )
     while True:
         try:
-            if not sheets.has_pending_batch():
-                time.sleep(poll_seconds)
-                continue
-
-            entries = [
-                e for e in sheets.read_queue_entries() if e["status"] == "pending"
-            ]
-            if not entries:
-                sheets.set_batch_flag("idle", "no pending rows")
-                time.sleep(poll_seconds)
-                continue
-
-            print(f"\n======= 新批次：{len(entries)} 单待执行 =======")
-            for i, e in enumerate(entries, start=1):
-                print(f"  {i}. {e['order_no']} (sheet row {e['row_number']})")
-            sheets.set_batch_flag("running", f"batch size={len(entries)}")
-
-            done_count = 0
-            stopped = False
-
-            for idx, entry in enumerate(entries, start=1):
-                if sheets.is_stop_requested():
-                    cancelled = sheets.cancel_remaining_pending()
-                    sheets.set_batch_flag(
-                        "stopped",
-                        f"stopped after {done_count} done, cancelled={cancelled}",
-                    )
-                    print(
-                        f"\n已停止连续执行（完成 {done_count} 单，取消剩余 {cancelled} 单）。"
-                        "\n浏览器保持打开。选中新单号再点菜单即可继续。"
-                    )
-                    stopped = True
-                    break
-
-                item = SheetOrder(
-                    row_number=entry["row_number"], order_no=entry["order_no"]
-                )
-                print(
-                    f"\n--- [{idx}/{len(entries)}] {item.order_no} "
-                    f"(sheet row {item.row_number}) ---"
-                )
-                sheets.update_queue_entry(
-                    entry["queue_row"], "running", f"batch {idx}/{len(entries)}"
-                )
-
-                try:
-                    result = process_one(page, item, dry_run=dry_run, sheets=sheets)
-                except Exception as err:
-                    # 单单异常：标记 error，浏览器不关，整批停下等你重选
-                    sheets.update_queue_entry(entry["queue_row"], "error", str(err))
-                    sheets.cancel_remaining_pending("cancelled after error")
-                    sheets.set_batch_flag("error", str(err))
-                    print(f"\n处理异常：{err}")
-                    print("浏览器保持打开。terminal 仍在监听，可重新选单号开始。")
-                    stopped = True
-                    break
-
-                if not result["ok"]:
-                    err = result.get("error") or "failed"
-                    sheets.update_queue_entry(entry["queue_row"], "error", err)
-                    sheets.cancel_remaining_pending("cancelled after error")
-                    sheets.set_batch_flag("error", err)
-                    print(f"\n本单失败，已停止本批。原因：{err}")
-                    print("浏览器保持打开，将直接可用于下一批评列（不用重启）。")
-                    stopped = True
-                    break
-
-                sheets.update_queue_entry(
-                    entry["queue_row"],
-                    "done",
-                    f"final={result.get('final_status')}",
-                )
-                done_count += 1
-                print(f"  队列进度 {done_count}/{len(entries)}，继续下一单号搜索…")
-
-            if not stopped:
-                sheets.set_batch_flag(
-                    "done", f"batch complete done={done_count}/{len(entries)}"
-                )
-                print(
-                    f"\n本批完成：{done_count}/{len(entries)} 单。"
-                    "\n浏览器保持打开。可再选中单号点「从选中单号开始」。"
-                )
-
+            if hub.has_pending_batch():
+                entries = hub.pending_entries()
+                if entries:
+                    run_batch(page, dry_run, entries, hub, mark_sheet=False)
+                else:
+                    hub.set_flag("idle", "no pending rows")
+            elif sheets.has_pending_batch():
+                entries = [
+                    e for e in sheets.read_queue_entries() if e["status"] == "pending"
+                ]
+                if entries:
+                    run_batch(page, dry_run, entries, sheets, mark_sheet=True)
+                else:
+                    sheets.set_batch_flag("idle", "no pending rows")
         except Exception as err:
             print(f"\n监听循环出错（浏览器不关闭）：{err}")
             try:
+                hub.set_flag("error", str(err))
                 sheets.set_batch_flag("error", str(err))
             except Exception:
                 pass
