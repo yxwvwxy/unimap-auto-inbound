@@ -1,6 +1,10 @@
 # UniMap Auto Inbound
 
-从 Google Sheet 读取单号，打开 [UniUni Dispatch](https://dispatch.uniuni.com/main)，在 **Edit Order → Operation** 里按当前状态连续 Next Transition，直到 **215**。
+**Auto-inbound to storage: simulates human clicks without API access, runs on a PC.**
+
+This tool advances UniUni parcels into storage (status **215**) so people do not have to click each Next Transition by hand. There is no official API for that workflow, so it runs on a local PC, opens [UniUni Dispatch](https://dispatch.uniuni.com/main), and simulates the same clicks a human would make in **Edit Order → Operation**.
+
+从 Google Sheet（或 SI 页面）读取单号，在 Dispatch 里按当前状态连续 Next Transition，直到 **215**。
 
 ## 状态路径
 
