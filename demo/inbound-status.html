@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auto status update for inbound storage and redelivery</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#f6f6f3, #141413);
+      --fg: light-dark(#1a1a18, #ecece8);
+      --muted: light-dark(#5c5c58, #a8a8a2);
+      --line: light-dark(#d0d0cb, #3f3f3d);
+      --card: light-dark(#ffffff, #1c1c1a);
+      --head: light-dark(#ecece8, #2a2a28);
+      --btn: light-dark(#1a1a18, #ecece8);
+      --btn-fg: light-dark(#f6f6f3, #141413);
+      --mark: light-dark(#e8f0dc, #2a3324);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.45 ui-sans-serif, system-ui, sans-serif;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    #now {
+      margin: 0 0 16px;
+      color: var(--muted);
+      min-height: 1.45em;
+    }
+    .bar { margin-bottom: 24px; }
+    button {
+      appearance: none;
+      border: 0;
+      background: var(--btn);
+      color: var(--btn-fg);
+      padding: 8px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 28px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th { background: var(--head); font-weight: 600; }
+    .done { width: 3.5rem; text-align: center; }
+    tr.on td { background: var(--mark); }
+    .buckets {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .bucket {
+      border: 1px solid var(--line);
+      background: var(--card);
+      min-height: 120px;
+    }
+    .bucket h3 {
+      margin: 0;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--head);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .bucket ul {
+      margin: 0;
+      padding: 8px 10px;
+      list-style: none;
+      min-height: 28px;
+    }
+    .bucket li {
+      padding: 3px 0;
+    }
+    .hop {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      margin-bottom: 8px;
+    }
+    .hop[hidden] { display: none; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .sub { margin-top: 28px; }
+    .lookup {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: var(--card);
+    }
+    .lookup span { color: var(--muted); }
+    @media (max-width: 720px) {
+      .split { grid-template-columns: 1fr; }
+      .buckets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Auto status update for inbound storage and redelivery</h1>
+    <p id="now">Tracking Number 1 is open.</p>
+    <div class="bar">
+      <button type="button" id="play">Play</button>
+    </div>
+
+    <div class="split">
+      <section aria-label="Tracking Number list">
+        <h2>Tracking Number list</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Tracking Number</th>
+              <th>Done</th>
+            </tr>
+          </thead>
+          <tbody id="list-body"></tbody>
+        </table>
+      </section>
+
+      <section aria-label="Status">
+        <h2>Status</h2>
+        <div id="hops">
+          <div class="hop" data-hop="111" hidden>
+            <span class="code">111</span>
+            <span>parcel scan</span>
+          </div>
+          <div class="hop" data-hop="222" hidden>
+            <span class="code">222</span>
+            <span>send to storage</span>
+          </div>
+          <div class="hop" data-hop="333" hidden>
+            <span class="code">333</span>
+            <span>inbound complete</span>
+          </div>
+          <div class="hop" data-hop="444" hidden>
+            <span class="code">444</span>
+            <span>redelivery</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="sub" aria-label="Status groups">
+      <h2>Status</h2>
+      <div class="buckets">
+        <div class="bucket">
+          <h3>pending inbound</h3>
+          <ul id="b-wait"></ul>
+        </div>
+        <div class="bucket">
+          <h3>in storage</h3>
+          <ul id="b-in"></ul>
+        </div>
+        <div class="bucket">
+          <h3>located</h3>
+          <ul id="b-found"></ul>
+        </div>
+        <div class="bucket">
+          <h3>redelivery</h3>
+          <ul id="b-re"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="sub" aria-label="Boxes">
+      <h2>Boxes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tracking Number</th>
+            <th>Storage Code</th>
+            <th>Box</th>
+          </tr>
+        </thead>
+        <tbody id="box-body"></tbody>
+      </table>
+    </section>
+
+    <section class="sub" aria-label="Locate">
+      <h2>Locate</h2>
+      <div class="lookup">
+        <span>Search</span>
+        <strong id="lookup-q">—</strong>
+        <span>Box</span>
+        <strong id="lookup-box">—</strong>
+        <span>Storage Code</span>
+        <strong id="lookup-code">—</strong>
+      </div>
+    </section>
+  </main>
+  <script>
+    const ITEMS = Array.from({ length: 5 }, (_, i) => ({
+      id: String(i + 1),
+      tn: "Tracking Number " + (i + 1),
+      code: "AB" + String(i + 1).padStart(2, "0"),
+      box: i < 3 ? "Box 1" : "Box 2",
+    }));
+
+    const playBtn = document.getElementById("play");
+    const nowEl = document.getElementById("now");
+    const listBody = document.getElementById("list-body");
+    const boxBody = document.getElementById("box-body");
+    const hops = {
+      111: document.querySelector('[data-hop="111"]'),
+      222: document.querySelector('[data-hop="222"]'),
+      333: document.querySelector('[data-hop="333"]'),
+      444: document.querySelector('[data-hop="444"]'),
+    };
+    const buckets = {
+      wait: document.getElementById("b-wait"),
+      inn: document.getElementById("b-in"),
+      found: document.getElementById("b-found"),
+      re: document.getElementById("b-re"),
+    };
+    const lookupQ = document.getElementById("lookup-q");
+    const lookupBox = document.getElementById("lookup-box");
+    const lookupCode = document.getElementById("lookup-code");
+
+    let timers = [];
+
+    function later(ms, fn) {
+      timers.push(window.setTimeout(fn, ms));
+    }
+
+    function stop() {
+      timers.forEach((id) => window.clearTimeout(id));
+      timers = [];
+    }
+
+    function finish() {
+      playBtn.disabled = false;
+      playBtn.textContent = "Play";
+    }
+
+    function chip(id) {
+      const li = document.createElement("li");
+      li.dataset.id = id;
+      li.textContent = "Tracking Number " + id;
+      return li;
+    }
+
+    function put(id, key) {
+      Object.values(buckets).forEach((ul) => {
+        const node = ul.querySelector('[data-id="' + id + '"]');
+        if (node) node.remove();
+      });
+      buckets[key].appendChild(chip(id));
+    }
+
+    function mark(id) {
+      const cell = listBody.querySelector('[data-id="' + id + '"] .done');
+      if (cell) cell.textContent = "✓";
+    }
+
+    function addBoxRow(item) {
+      const tr = document.createElement("tr");
+      tr.dataset.code = item.code;
+      tr.innerHTML = "<td></td><td class='code'></td><td></td>";
+      tr.children[0].textContent = item.tn;
+      tr.children[1].textContent = item.code;
+      tr.children[2].textContent = item.box;
+      boxBody.appendChild(tr);
+    }
+
+    function reset() {
+      stop();
+      Object.values(hops).forEach((el) => { el.hidden = true; });
+      Object.values(buckets).forEach((ul) => { ul.replaceChildren(); });
+      listBody.replaceChildren();
+      boxBody.replaceChildren();
+      lookupQ.textContent = "—";
+      lookupBox.textContent = "—";
+      lookupCode.textContent = "—";
+      ITEMS.forEach((item) => {
+        const tr = document.createElement("tr");
+        tr.dataset.id = item.id;
+        tr.innerHTML = "<td></td><td class='done'></td>";
+        tr.children[0].textContent = item.tn;
+        listBody.appendChild(tr);
+        buckets.wait.appendChild(chip(item.id));
+      });
+      nowEl.textContent = "Tracking Number 1 is open.";
+    }
+
+    function play() {
+      reset();
+      playBtn.disabled = true;
+      playBtn.textContent = "Playing";
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        hops[111].hidden = false;
+        hops[222].hidden = false;
+        hops[333].hidden = false;
+        hops[444].hidden = false;
+        ITEMS.forEach((item) => {
+          mark(item.id);
+          put(item.id, item.id === "3" ? "re" : "inn");
+          addBoxRow(item);
+        });
+        put("3", "re");
+        boxBody.querySelector('[data-code="AB03"]').classList.add("on");
+        lookupQ.textContent = "Tracking Number 3 / AB03";
+        lookupBox.textContent = "Box 1";
+        lookupCode.textContent = "AB03";
+        nowEl.textContent = "Tracking Number 3: 444 redelivery";
+        finish();
+        return;
+      }
+
+      let t = 280;
+      const gap = 1100;
+
+      later(t, () => {
+        hops[111].hidden = false;
+        nowEl.textContent = "Tracking Number 1: 111 parcel scan · pending inbound";
+      });
+      t += gap;
+      later(t, () => {
+        hops[222].hidden = false;
+        nowEl.textContent = "Tracking Number 1: 222 send to storage · pending inbound";
+      });
+      t += gap;
+      later(t, () => {
+        hops[333].hidden = false;
+        mark("1");
+        put("1", "inn");
+        nowEl.textContent = "Tracking Number 1: 333 inbound complete · in storage";
+      });
+
+      t += 900;
+      later(t, () => {
+        nowEl.textContent = "Operation assigns AB01–AB03 to Box 1, AB04–AB05 to Box 2";
+      });
+      ITEMS.forEach((item, i) => {
+        later(t + 280 * (i + 1), () => {
+          addBoxRow(item);
+          mark(item.id);
+          put(item.id, "inn");
+          nowEl.textContent = item.tn + " → " + item.code + " → " + item.box + " · in storage";
+        });
+      });
+
+      t += 280 * ITEMS.length + 800;
+      later(t, () => {
+        lookupQ.textContent = "Tracking Number 3";
+        nowEl.textContent = "Locate Tracking Number 3";
+      });
+      t += 900;
+      later(t, () => {
+        lookupCode.textContent = "AB03";
+        lookupBox.textContent = "Box 1";
+        const row = boxBody.querySelector('[data-code="AB03"]');
+        if (row) row.classList.add("on");
+        put("3", "found");
+        nowEl.textContent = "Tracking Number 3 / AB03 is in Box 1 · located";
+      });
+      t += 1100;
+      later(t, () => {
+        hops[444].hidden = false;
+        put("3", "re");
+        nowEl.textContent = "Tracking Number 3: 444 redelivery";
+        finish();
+      });
+    }
+
+    playBtn.addEventListener("click", play);
+    play();
+  </script>
+</body>
+</html>
