@@ -6,6 +6,12 @@ This tool advances UniUni parcels into storage (status **215**) so people do not
 
 从 Google Sheet（或 SI 页面）读取单号，在 Dispatch 里按当前状态连续 Next Transition，直到 **215**。
 
+## 演示
+
+入库、分箱、定位、改派的播放页在 [`demo/inbound-status.html`](demo/inbound-status.html)。
+
+浏览器直接打开：<https://htmlpreview.github.io/?https://github.com/yxwvwxy/unimap-auto-inbound/blob/main/demo/inbound-status.html>
+
 ## 状态路径
 
 每一步统一顺序：**Next Transition → Operation Location=`NJ Warehouse` → Submit**。

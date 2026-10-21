@@ -37,8 +37,9 @@
     }
     #now {
       margin: 0 0 16px;
+      height: 2.9em;
       color: var(--muted);
-      min-height: 1.45em;
+      overflow: hidden;
     }
     .bar { margin-bottom: 24px; }
     button {
@@ -63,6 +64,7 @@
     }
     table {
       width: 100%;
+      table-layout: fixed;
       border-collapse: collapse;
       background: var(--card);
     }
@@ -70,7 +72,20 @@
       border: 1px solid var(--line);
       padding: 8px 10px;
       text-align: left;
+      overflow: hidden;
+      white-space: nowrap;
     }
+    .done-col { width: 4.5rem; }
+    .box-sheet {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      column-gap: 10px;
+    }
+    .box-sheet thead,
+    .box-sheet tbody,
+    .box-sheet tr { display: contents; }
+    .box-sheet th:nth-child(1),
+    .box-sheet td:nth-child(1) { grid-column: span 2; }
     th { background: var(--head); font-weight: 600; }
     .done { width: 3.5rem; text-align: center; }
     tr.on td { background: var(--mark); }
@@ -78,11 +93,14 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
+      align-items: start;
     }
     .bucket {
       border: 1px solid var(--line);
       background: var(--card);
-      min-height: 120px;
+      width: 100%;
+      height: 168px;
+      overflow: hidden;
     }
     .bucket h3 {
       margin: 0;
@@ -101,27 +119,62 @@
     .bucket li {
       padding: 3px 0;
     }
+    .bucket li.on {
+      background: var(--mark);
+    }
+    #hops {
+      border: 1px solid var(--line);
+      background: var(--card);
+      overflow: hidden;
+    }
     .hop {
       display: flex;
       justify-content: space-between;
       gap: 12px;
       padding: 8px 10px;
-      border: 1px solid var(--line);
-      background: var(--card);
-      margin-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      visibility: hidden;
     }
-    .hop[hidden] { display: none; }
+    .hop span {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .hop:last-child { border-bottom: 0; }
+    .hop.on { visibility: visible; }
+    .hop.current { background: var(--mark); }
+    .table-frame {
+      height: 160px;
+      overflow: hidden;
+      background: var(--card);
+    }
     .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .sub { margin-top: 28px; }
     .lookup {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 16px;
-      padding: 12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      height: 72px;
+      overflow: hidden;
+    }
+    .lookup > div {
+      min-width: 0;
       border: 1px solid var(--line);
       background: var(--card);
+      padding: 8px 10px;
+      overflow: hidden;
     }
-    .lookup span { color: var(--muted); }
+    .lookup-search { grid-column: 1 / 3; }
+    .lookup .label,
+    .lookup .value {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      font-weight: 400;
+    }
+    .lookup .label { color: var(--muted); }
+    .lookup .value.on { background: var(--mark); }
     @media (max-width: 720px) {
       .split { grid-template-columns: 1fr; }
       .buckets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -131,18 +184,22 @@
 <body>
   <main>
     <h1>Auto status update for inbound storage and redelivery</h1>
-    <p id="now">Tracking Number 1 is open.</p>
+    <p id="now">Tracking #1 is open.</p>
     <div class="bar">
       <button type="button" id="play">Play</button>
     </div>
 
     <div class="split">
-      <section aria-label="Tracking Number list">
-        <h2>Tracking Number list</h2>
+      <section aria-label="Tracking number list">
+        <h2>Tracking number list</h2>
         <table>
+          <colgroup>
+            <col>
+            <col class="done-col">
+          </colgroup>
           <thead>
             <tr>
-              <th>Tracking Number</th>
+              <th>Tracking number</th>
               <th>Done</th>
             </tr>
           </thead>
@@ -153,21 +210,21 @@
       <section aria-label="Status">
         <h2>Status</h2>
         <div id="hops">
-          <div class="hop" data-hop="111" hidden>
+          <div class="hop" data-hop="111">
             <span class="code">111</span>
-            <span>parcel scan</span>
+            <span>Parcel scan</span>
           </div>
-          <div class="hop" data-hop="222" hidden>
+          <div class="hop" data-hop="222">
             <span class="code">222</span>
-            <span>send to storage</span>
+            <span>Send to storage</span>
           </div>
-          <div class="hop" data-hop="333" hidden>
+          <div class="hop" data-hop="333">
             <span class="code">333</span>
-            <span>inbound complete</span>
+            <span>Inbound complete</span>
           </div>
-          <div class="hop" data-hop="444" hidden>
+          <div class="hop" data-hop="444">
             <span class="code">444</span>
-            <span>redelivery</span>
+            <span>Redelivery</span>
           </div>
         </div>
       </section>
@@ -177,19 +234,19 @@
       <h2>Status</h2>
       <div class="buckets">
         <div class="bucket">
-          <h3>pending inbound</h3>
+          <h3>Pending inbound</h3>
           <ul id="b-wait"></ul>
         </div>
         <div class="bucket">
-          <h3>in storage</h3>
+          <h3>In storage</h3>
           <ul id="b-in"></ul>
         </div>
         <div class="bucket">
-          <h3>located</h3>
+          <h3>Located</h3>
           <ul id="b-found"></ul>
         </div>
         <div class="bucket">
-          <h3>redelivery</h3>
+          <h3>Redelivery</h3>
           <ul id="b-re"></ul>
         </div>
       </div>
@@ -197,37 +254,44 @@
 
     <section class="sub" aria-label="Boxes">
       <h2>Boxes</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Tracking Number</th>
-            <th>Storage Code</th>
-            <th>Box</th>
-          </tr>
-        </thead>
-        <tbody id="box-body"></tbody>
-      </table>
+      <div class="table-frame">
+        <table class="box-sheet">
+          <thead>
+            <tr>
+              <th>Tracking number</th>
+              <th>Storage code</th>
+              <th>Box</th>
+            </tr>
+          </thead>
+          <tbody id="box-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="sub" aria-label="Locate">
       <h2>Locate</h2>
       <div class="lookup">
-        <span>Search</span>
-        <strong id="lookup-q">—</strong>
-        <span>Box</span>
-        <strong id="lookup-box">—</strong>
-        <span>Storage Code</span>
-        <strong id="lookup-code">—</strong>
+        <div class="lookup-search">
+          <span class="label">Search</span>
+          <span class="value" id="lookup-q">—</span>
+        </div>
+        <div>
+          <span class="label">Storage code</span>
+          <span class="value" id="lookup-code">—</span>
+        </div>
+        <div>
+          <span class="label">Box</span>
+          <span class="value" id="lookup-box">—</span>
+        </div>
       </div>
     </section>
   </main>
   <script>
-    const ITEMS = Array.from({ length: 5 }, (_, i) => ({
-      id: String(i + 1),
-      tn: "Tracking Number " + (i + 1),
-      code: "AB" + String(i + 1).padStart(2, "0"),
-      box: i < 3 ? "Box 1" : "Box 2",
-    }));
+    const ITEMS = [
+      { id: "1", tn: "Tracking #1", code: "AB01", box: "Box 1" },
+      { id: "2", tn: "Tracking #2", code: "AB02", box: "Box 1" },
+      { id: "3", tn: "Tracking #3", code: "AB03", box: "Box 2" },
+    ];
 
     const playBtn = document.getElementById("play");
     const nowEl = document.getElementById("now");
@@ -250,6 +314,7 @@
     const lookupCode = document.getElementById("lookup-code");
 
     let timers = [];
+    let activeId = "";
 
     function later(ms, fn) {
       timers.push(window.setTimeout(fn, ms));
@@ -268,7 +333,7 @@
     function chip(id) {
       const li = document.createElement("li");
       li.dataset.id = id;
-      li.textContent = "Tracking Number " + id;
+      li.textContent = "Tracking #" + id;
       return li;
     }
 
@@ -277,7 +342,9 @@
         const node = ul.querySelector('[data-id="' + id + '"]');
         if (node) node.remove();
       });
-      buckets[key].appendChild(chip(id));
+      const node = chip(id);
+      if (id === activeId) node.classList.add("on");
+      buckets[key].appendChild(node);
     }
 
     function mark(id) {
@@ -287,22 +354,44 @@
 
     function addBoxRow(item) {
       const tr = document.createElement("tr");
+      tr.dataset.id = item.id;
       tr.dataset.code = item.code;
       tr.innerHTML = "<td></td><td class='code'></td><td></td>";
       tr.children[0].textContent = item.tn;
       tr.children[1].textContent = item.code;
+      tr.children[2].className = "box";
       tr.children[2].textContent = item.box;
+      if (item.id === activeId) tr.classList.add("on");
       boxBody.appendChild(tr);
+    }
+
+    function showHop(code) {
+      Object.values(hops).forEach((el) => el.classList.remove("current"));
+      hops[code].classList.add("on", "current");
+    }
+
+    function focusParcel(id) {
+      activeId = id;
+      document.querySelectorAll("#list-body tr.on, .bucket li.on, #box-body tr.on").forEach((el) => {
+        el.classList.remove("on");
+      });
+      const row = listBody.querySelector('[data-id="' + id + '"]');
+      if (row) row.classList.add("on");
+      const chipEl = document.querySelector('.bucket li[data-id="' + id + '"]');
+      if (chipEl) chipEl.classList.add("on");
+      const box = boxBody.querySelector('tr[data-id="' + id + '"]');
+      if (box) box.classList.add("on");
     }
 
     function reset() {
       stop();
-      Object.values(hops).forEach((el) => { el.hidden = true; });
+      Object.values(hops).forEach((el) => { el.classList.remove("on", "current"); });
       Object.values(buckets).forEach((ul) => { ul.replaceChildren(); });
       listBody.replaceChildren();
       boxBody.replaceChildren();
       lookupQ.textContent = "—";
       lookupBox.textContent = "—";
+      lookupBox.classList.remove("on");
       lookupCode.textContent = "—";
       ITEMS.forEach((item) => {
         const tr = document.createElement("tr");
@@ -312,7 +401,8 @@
         listBody.appendChild(tr);
         buckets.wait.appendChild(chip(item.id));
       });
-      nowEl.textContent = "Tracking Number 1 is open.";
+      focusParcel("1");
+      nowEl.textContent = "Tracking #1 is open.";
     }
 
     function play() {
@@ -321,77 +411,80 @@
       playBtn.textContent = "Playing";
 
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        hops[111].hidden = false;
-        hops[222].hidden = false;
-        hops[333].hidden = false;
-        hops[444].hidden = false;
+        showHop(111);
+        showHop(222);
+        showHop(333);
+        showHop(444);
         ITEMS.forEach((item) => {
           mark(item.id);
           put(item.id, item.id === "3" ? "re" : "inn");
           addBoxRow(item);
         });
         put("3", "re");
-        boxBody.querySelector('[data-code="AB03"]').classList.add("on");
-        lookupQ.textContent = "Tracking Number 3 / AB03";
-        lookupBox.textContent = "Box 1";
+        focusParcel("3");
+        lookupQ.textContent = "Tracking #3 / AB03";
+        lookupBox.textContent = "Box 2";
+        lookupBox.classList.add("on");
         lookupCode.textContent = "AB03";
-        nowEl.textContent = "Tracking Number 3: 444 redelivery";
+        nowEl.textContent = "Tracking #3: 444 Redelivery";
         finish();
         return;
       }
 
-      let t = 280;
       const gap = 1100;
+      let t = gap;
+      function step(fn) {
+        later(t, fn);
+        t += gap;
+      }
 
-      later(t, () => {
-        hops[111].hidden = false;
-        nowEl.textContent = "Tracking Number 1: 111 parcel scan · pending inbound";
+      step(() => {
+        showHop(111);
+        focusParcel("1");
+        nowEl.textContent = "Tracking #1: 111 Parcel scan · Pending inbound";
       });
-      t += gap;
-      later(t, () => {
-        hops[222].hidden = false;
-        nowEl.textContent = "Tracking Number 1: 222 send to storage · pending inbound";
+      step(() => {
+        showHop(222);
+        focusParcel("1");
+        nowEl.textContent = "Tracking #1: 222 Send to storage · Pending inbound";
       });
-      t += gap;
-      later(t, () => {
-        hops[333].hidden = false;
+      step(() => {
+        showHop(333);
         mark("1");
         put("1", "inn");
-        nowEl.textContent = "Tracking Number 1: 333 inbound complete · in storage";
+        focusParcel("1");
+        nowEl.textContent = "Tracking #1: 333 Inbound complete · In storage";
       });
-
-      t += 900;
-      later(t, () => {
-        nowEl.textContent = "Operation assigns AB01–AB03 to Box 1, AB04–AB05 to Box 2";
+      step(() => {
+        nowEl.textContent = "Operation assigns AB01–AB02 to Box 1, AB03 to Box 2";
       });
-      ITEMS.forEach((item, i) => {
-        later(t + 280 * (i + 1), () => {
+      ITEMS.forEach((item) => {
+        step(() => {
           addBoxRow(item);
           mark(item.id);
           put(item.id, "inn");
-          nowEl.textContent = item.tn + " → " + item.code + " → " + item.box + " · in storage";
+          focusParcel(item.id);
+          nowEl.textContent = item.tn + " → " + item.code + " → " + item.box + " · In storage";
         });
       });
-
-      t += 280 * ITEMS.length + 800;
-      later(t, () => {
-        lookupQ.textContent = "Tracking Number 3";
-        nowEl.textContent = "Locate Tracking Number 3";
+      step(() => {
+        lookupQ.textContent = "Tracking #3";
+        focusParcel("3");
+        nowEl.textContent = "Locate tracking #3";
       });
-      t += 900;
-      later(t, () => {
+      step(() => {
         lookupCode.textContent = "AB03";
-        lookupBox.textContent = "Box 1";
-        const row = boxBody.querySelector('[data-code="AB03"]');
-        if (row) row.classList.add("on");
+        lookupBox.textContent = "Box 2";
+        lookupBox.classList.add("on");
         put("3", "found");
-        nowEl.textContent = "Tracking Number 3 / AB03 is in Box 1 · located";
+        focusParcel("3");
+        nowEl.textContent = "Tracking #3 / AB03 is in Box 2 · Located";
       });
-      t += 1100;
-      later(t, () => {
-        hops[444].hidden = false;
+      step(() => {
+        showHop(444);
         put("3", "re");
-        nowEl.textContent = "Tracking Number 3: 444 redelivery";
+        focusParcel("3");
+        nowEl.textContent = "Tracking #3: 444 Redelivery";
         finish();
       });
     }
