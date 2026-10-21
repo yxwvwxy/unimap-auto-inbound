@@ -6,7 +6,7 @@ This tool advances UniUni parcels into storage (status **215**) so people do not
 
 It reads order numbers from a Google Sheet (or the SI page) and, in Dispatch, follows Next Transition from the current status until **215**.
 
-## [Demo (anonymized sample, process logic only)](demo/inbound-demo.mp4)
+## [Demo (anonymized sample, process logic only)](demo/playback.md)
 
 ![Inbound, box assignment, locate, and redelivery](demo/inbound-demo.gif)
 
