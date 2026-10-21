@@ -11,7 +11,19 @@ Apps Script **不能**直接操作 UniUni 网页（Microsoft 登录 + 页面点�
    https://docs.google.com/spreadsheets/d/1yrR83W15kKevye87ksYnELUY68i_j4_kIIY_gu0bAWU/edit  
 2. **扩展程序 → Apps Script**  
 3. 把 `Code.gs` 全部粘贴进去，保存  
-4. 回到 Sheet **刷新**，顶部应出现菜单 **「一键入库」**
+4. 在 Apps Script 里 **文件 → 新建 → HTML**，文件名填 `InboundDemo`（不要加 `.html`）  
+5. 把 `InboundDemo.html` 全部粘贴进去，保存  
+6. 回到 Sheet **刷新**，顶部应出现菜单 **「一键入库」**
+
+## 在 Google 页面打开演示
+
+表格里：**一键入库 → 打开入库演示**。
+
+要得到可单独打开的 Google 网址：
+
+1. Apps Script 右上角 **部署 → 新建部署**  
+2. 类型选 **网络应用**，执行身份选自己，访问权限选「仅限自己」或「任何人」  
+3. 部署后复制网址，用浏览器打开。之后若改了演示，用 **管理部署 → 编辑 → 新版本** 再部署一次。
 
 ## 一次性配置本机读/写 Sheet
 

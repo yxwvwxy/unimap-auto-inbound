@@ -5,7 +5,9 @@
  * 1. 打开 Sheet → 扩展程序 → Apps Script
  * 2. 删除默认代码，粘贴本文件全部内容
  * 3. 保存后刷新 Sheet，顶部菜单出现「一键入库」
- * 4. 本机保持运行: ./run.sh --watch （负责真正操作 UniUni）
+ * 4. 新建 HTML 文件，名称必须是 InboundDemo，粘贴 InboundDemo.html
+ * 5. 本机保持运行: ./run.sh --watch （负责真正操作 UniUni）
+ *    菜单「打开入库演示」在表格里播放；部署为网络应用后可用 Google 网址打开
  *
  * 流程：
  * - A 列 = 单号，B 列 = 完成后勾选
@@ -27,7 +29,24 @@ function onOpen() {
     .addSeparator()
     .addItem("查看队列状态", "showQueueStatus")
     .addItem("打开队列页", "openQueueSheet")
+    .addSeparator()
+    .addItem("打开入库演示", "showInboundDemo")
     .addToUi();
+}
+
+/** 在表格里打开演示。网页地址需另做「部署 → 网络应用」。 */
+function showInboundDemo() {
+  var html = HtmlService.createHtmlOutputFromFile("InboundDemo")
+    .setWidth(980)
+    .setHeight(760);
+  SpreadsheetApp.getUi().showModalDialog(html, "入库演示");
+}
+
+/** 部署为网络应用后，用脚本网址直接打开同一份演示。 */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile("InboundDemo")
+    .setTitle("Auto status update for inbound storage and redelivery")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function isChecked_(value) {
