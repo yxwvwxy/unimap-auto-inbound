@@ -8,9 +8,7 @@ This tool advances UniUni parcels into storage (status **215**) so people do not
 
 ## 演示
 
-入库、分箱、定位、改派的播放页在 [`demo/inbound-status.html`](demo/inbound-status.html)。
-
-浏览器直接打开：<https://htmlpreview.github.io/?https://github.com/yxwvwxy/unimap-auto-inbound/blob/main/demo/inbound-status.html>
+![入库、分箱、定位、改派](demo/inbound-demo.gif)
 
 ## 状态路径
 
