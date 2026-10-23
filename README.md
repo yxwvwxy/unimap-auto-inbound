@@ -2,11 +2,15 @@
 
 **Auto-inbound to storage: simulates human clicks without API access, runs on a PC.**
 
-This tool advances UniUni parcels into storage (status **215**) so people do not have to click each Next Transition by hand. There is no official API for that workflow, so it runs on a local PC, opens [UniUni Dispatch](https://dispatch.uniuni.com/main), and simulates the same clicks a human would make in **Edit Order → Operation**.
+## About
 
-It reads order numbers from a Google Sheet (or the SI page) and, in Dispatch, follows Next Transition from the current status until **215**.
+This tool advances parcels into storage so people do not have to click each Next Transition by hand. There is no official API for that workflow, so it runs on a local PC, opens Dispatch, and simulates the same clicks a human would make.
 
-## [Demo (anonymized sample, process logic only)](demo/playback.md)
+It also covers the later storage flow: assign tracking numbers to a box, look them up by tracking number or storage code, then update a found parcel for redelivery.
+
+**Demo:** [Auto status update for inbound storage and redelivery](https://yxwvwxy.github.io/unimap-auto-inbound/demo/inbound-status.html)
+
+## [Demo recording (anonymized sample)](demo/playback.md)
 
 ![Inbound, box assignment, locate, and redelivery](demo/inbound-demo.gif)
 
