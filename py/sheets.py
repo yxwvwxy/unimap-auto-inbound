@@ -109,7 +109,7 @@ class SheetsClient:
         Stops with BlankRowError if column A has an empty cell in the data range.
         """
         title = self.main_sheet_title()
-        # A:B covers order + checkbox
+        # A = tracking number, B = done checkbox. C = Date is manual; do not write it.
         result = (
             self.service.spreadsheets()
             .values()
@@ -174,6 +174,7 @@ class SheetsClient:
         return None
 
     def mark_done(self, row_number: int) -> None:
+        """Check column B only. Column C (Date) is filled by hand."""
         title = self.main_sheet_title()
         self.service.spreadsheets().values().update(
             spreadsheetId=self.sheet_id,

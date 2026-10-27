@@ -26,13 +26,18 @@ export const config = {
     ? path.resolve(process.env.LOCAL_CSV_FILE)
     : undefined,
   unimapUrl: env("UNIMAP_URL", "https://dispatch.uniuni.com/main"),
+  uniuniPortalUrl: (
+    process.env.UNIUNI_PORTAL_URL || "https://dispatch.uniuni.com/login"
+  ).replace(/\/?$/, "/"),
+  uniuniUsername: (process.env.UNIUNI_USERNAME || "").trim(),
+  uniuniPassword: (process.env.UNIUNI_PASSWORD || "").trim(),
   browserProfileDir: path.resolve(
     env("BROWSER_PROFILE_DIR", "./.browser-profile"),
   ),
-  targetStatus: 215,
+  targetStatus: 213,
   warehouse: {
     operationWarehouse: "NJ warehouse",
     networkNote: "WH- JFK-005",
   },
-  failReason: "parcel damaged",
+  failReason: "package rejected by recipient",
 };

@@ -24,7 +24,7 @@ from py.unimap import (
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="UniMap auto-inbound to status 215")
+    p = argparse.ArgumentParser(description="UniMap auto-inbound to status 213")
     p.add_argument("--login-only", action="store_true", help="Save Microsoft login session only")
     p.add_argument("--dry-run", action="store_true", help="Plan transitions without submitting")
     p.add_argument("--order", help="Process a single order number")

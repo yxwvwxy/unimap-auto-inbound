@@ -10,15 +10,16 @@
  *    菜单「打开入库演示」在表格里播放；部署为网络应用后可用 Google 网址打开
  *
  * 流程：
- * - A 列 = 单号，B 列 = 完成后勾选
+ * - A 列 = 单号，B 列 = 完成后勾选，C 列 = Date（只手填，脚本不写）
  * - 选中起始行 →「从选中单号开始」
  * - 队列写入：从该行起 A 列连续单号，直到空行（整批可见于「入库队列」页）
- * - 本机按队列顺序做到 215；「停止连续执行」中止后续 pending
+ * - 本机按队列顺序做到 213；「停止连续执行」中止后续 pending
  */
 
 var QUEUE_SHEET = "入库队列";
 var ORDER_COL = 1; // A
 var DONE_COL = 2; // B
+var DATE_COL = 3; // C, manual only
 var HEADER_ROWS = 1;
 
 function onOpen() {

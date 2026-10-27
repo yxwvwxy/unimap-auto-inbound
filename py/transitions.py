@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Set
 
-TARGET_STATUS = 215
+TARGET_STATUS = 213
 
 
 @dataclass
@@ -37,7 +37,6 @@ TRANSITION_STEPS: List[TransitionStep] = [
         "storage 30 days from office",
         extras=["warehouse"],
     ),
-    TransitionStep([213], "parcel abandon", 215, "parcel abandoned"),
 ]
 
 # UI may show spaces, underscores, or ALL_CAPS like Tracking Info (190: ORDER_RECEIVED)
@@ -73,18 +72,10 @@ TRANSITION_ALIASES = {
         "send parcel to storage",
         "SEND PARCEL TO STORAGE",
     ],
-    "parcel abandon": [
-        "PARCEL_ABANDON",
-        "PARCEL_ABANDONED",
-        "parcel abandon",
-        "parcel abandoned",
-        "PARCEL ABANDON",
-        "PARCEL ABANDONED",
-    ],
 }
 
 # Only statuses explained by the user are allowed. 190 IS included.
-KNOWN_STATUSES: Set[int] = {215}
+KNOWN_STATUSES: Set[int] = {213}
 for _step in TRANSITION_STEPS:
     KNOWN_STATUSES.update(_step.from_statuses)
     KNOWN_STATUSES.add(_step.to_status)

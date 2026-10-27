@@ -58,22 +58,66 @@ export async function openUnimap(context: BrowserContext): Promise<Page> {
   return page;
 }
 
-/**
- * Wait until the user finishes Microsoft login and reaches the main app.
- * Press Enter in the terminal when ready.
- */
-export async function waitForManualLogin(page: Page): Promise<void> {
-  console.log("\n=== Microsoft / UniUni login ===");
-  console.log("1. Complete Microsoft login / MFA in the opened browser.");
-  console.log("2. Wait until you can see the UniUni dispatch main page with the left menu.");
-  console.log("3. Come back here and press Enter to continue.\n");
+function isLoginPage(page: Page): boolean {
+  return page.url().includes("/login");
+}
 
+async function portalLoggedIn(page: Page): Promise<boolean> {
+  if (isLoginPage(page)) return false;
+  const url = page.url();
+  if (/dispatch\.uniuni\.com\/(main|edit)/i.test(url)) return true;
+  return url.includes("dispatch.uniuni.com") && !url.includes("/login");
+}
+
+async function waitForEnter(): Promise<void> {
   await new Promise<void>((resolve) => {
     process.stdin.resume();
     process.stdin.once("data", () => resolve());
   });
+}
 
-  // Prefer staying on /main if redirected during login
+/**
+ * Auto-login with UNIUNI_USERNAME / UNIUNI_PASSWORD when set.
+ * Session is kept in the browser profile. MFA still needs a manual step.
+ */
+export async function waitForManualLogin(page: Page): Promise<void> {
+  if (await portalLoggedIn(page)) {
+    console.log("Already logged in (saved browser session).");
+  } else if (config.uniuniUsername && config.uniuniPassword) {
+    if (!page.url().includes("/login")) {
+      await page.goto(config.uniuniPortalUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+    }
+    const username = page
+      .locator(
+        '[data-testid="login-username-input"], input[name="username"], input[type="text"]',
+      )
+      .first();
+    const password = page.locator('input[type="password"]').first();
+    let submit = page.locator('[data-testid="login-submit-button"]').first();
+    if ((await submit.count()) === 0) {
+      submit = page.getByRole("button", { name: /^(login|sign in)$/i }).first();
+    }
+    console.log(`\n=== Auto login as ${config.uniuniUsername} ===`);
+    await username.fill(config.uniuniUsername);
+    await password.fill(config.uniuniPassword);
+    await submit.click({ force: true });
+    try {
+      await page.waitForURL(/dispatch\.uniuni\.com\/(main|edit)/i, { timeout: 25_000 });
+      console.log("Login OK.");
+    } catch {
+      console.log("Auto login paused; finish any verification, then press Enter.");
+      await waitForEnter();
+    }
+  } else {
+    console.log("\n=== UniUni login ===");
+    console.log("No UNIUNI_USERNAME / UNIUNI_PASSWORD in .env.");
+    console.log("Sign in in the opened browser, then press Enter.\n");
+    await waitForEnter();
+  }
+
   if (!page.url().includes("dispatch.uniuni.com")) {
     await page.goto(config.unimapUrl, { waitUntil: "domcontentloaded" });
   }
@@ -178,7 +222,7 @@ export async function readCurrentStatus(page: Page): Promise<number | null> {
   const body = await page.locator("body").innerText();
   blobs.unshift(body);
 
-  const known = [215, 213, 212, 211, 200, 199, 195, 255, 190, 1910];
+  const known = [213, 212, 211, 200, 199, 195, 255, 190, 1910];
   for (const code of known) {
     const re = new RegExp(`\\b${code}\\b`);
     if (blobs.some((b) => re.test(b))) {
@@ -280,8 +324,9 @@ async function fillExtras(page: Page, step: TransitionStep): Promise<void> {
   for (const extra of step.extras) {
     if (extra === "failReason") {
       await selectDropdownOption(page, /fail reason|failure reason|reason/i, config.failReason, [
-        "parcel damaged",
-        "Parcel Damaged",
+        "package rejected by recipient",
+        "Package Rejected By Recipient",
+        "PACKAGE_REJECTED_BY_RECIPIENT",
       ]);
     }
 
@@ -385,7 +430,7 @@ export async function advanceOrderToTarget(
     }
 
     if (status !== config.targetStatus) {
-      throw new Error(`未到达目标 215，停在 ${status}，已停止`);
+      throw new Error(`未到达目标 213，停在 ${status}，已停止`);
     }
     return { ok: true, finalStatus: status, steps: stepsLog, stopRun: false };
   } catch (err) {

@@ -72,19 +72,189 @@ def open_unimap(context: BrowserContext) -> Page:
     return page
 
 
-def wait_for_manual_login(page: Page) -> None:
-    print("\n=== Microsoft / UniUni login ===")
-    print("1. Complete Microsoft login / MFA in the opened browser.")
+def _is_login_page(page: Page) -> bool:
+    if "/login" in page.url:
+        return True
+    if page.locator('[data-testid="login-microsoft-sso-button"]').count() > 0:
+        return True
+    password = page.locator('input[type="password"]')
+    return password.count() > 0 and password.first.is_visible()
+
+
+def _dismiss_portal_dialogs(page: Page) -> None:
+    try:
+        page.evaluate(
+            """() => {
+              const re = /got it|^ok$|^close$|确认|确定|关闭|知道了/i;
+              for (const button of document.querySelectorAll('button')) {
+                const text = (button.innerText || '').trim();
+                if (re.test(text)) {
+                  button.click();
+                  return true;
+                }
+              }
+              return false;
+            }"""
+        )
+    except Exception:
+        pass
+    page.wait_for_timeout(400)
+
+
+def _portal_logged_in(page: Page) -> bool:
+    if _is_login_page(page):
+        return False
+    url = page.url
+    if re.search(r"dispatch\.uniuni\.com/(main|edit)", url, re.I):
+        return True
+    return "dispatch.uniuni.com" in url and "/login" not in url
+
+
+def _login_inputs(page: Page):
+    username = page.locator(
+        '[data-testid="login-username-input"], input[name="username"], input[autocomplete="username"]'
+    ).first
+    try:
+        if username.count() == 0 or not username.is_visible():
+            username = page.get_by_role("textbox", name=re.compile(r"username", re.I)).first
+    except Exception:
+        username = page.get_by_role("textbox", name=re.compile(r"username", re.I)).first
+
+    password = page.locator(
+        '[data-testid="login-password-input"], input[name="password"], input[type="password"]'
+    ).first
+    try:
+        if password.count() == 0 or not password.is_visible():
+            password = page.get_by_role("textbox", name=re.compile(r"password", re.I)).first
+    except Exception:
+        password = page.get_by_role("textbox", name=re.compile(r"password", re.I)).first
+
+    submit = page.locator('[data-testid="login-submit-button"]').first
+    try:
+        if submit.count() == 0 or not submit.is_visible():
+            submit = page.get_by_role(
+                "button", name=re.compile(r"^(login|log in|sign in)$", re.I)
+            ).first
+    except Exception:
+        submit = page.get_by_role(
+            "button", name=re.compile(r"^(login|log in|sign in)$", re.I)
+        ).first
+    return username, password, submit
+
+
+def _login_error_message(page: Page) -> Optional[str]:
+    try:
+        body = page.locator("body").inner_text(timeout=5_000)
+    except Exception:
+        return None
+    if re.search(r"login failed", body, re.I):
+        return "UniUni rejected the username/password (Login failed!)."
+    return None
+
+
+def _wait_for_manual_step(page: Page, reason: str) -> None:
+    print(f"\n=== {reason} ===")
+    print("1. Finish any extra check in the opened browser.")
     print("2. On the Menu page, click the orange EDIT ORDER card.")
-    print("3. Wait until the Edit Order search box is visible.")
-    print("4. Come back here and press Enter to continue.\n")
-    print("之后请尽量不要关掉 Edit Order 弹窗；下一单会直接在弹窗里搜索。\n")
-    input()
+    print("3. Come back here and press Enter.\n")
+    try:
+        input()
+    except EOFError:
+        pass
     if "dispatch.uniuni.com" not in page.url:
         page.goto(config.UNIMAP_URL, wait_until="domcontentloaded")
-    if not _find_order_search_input(page, required=False):
-        print("未检测到 Edit Order 搜索框。请点开橙色 EDIT ORDER 后再按 Enter。")
-        input()
+
+
+def _login_with_credentials(page: Page) -> None:
+    if _portal_logged_in(page) and not _is_login_page(page):
+        return
+    if not config.UNIUNI_USERNAME or not config.UNIUNI_PASSWORD:
+        return
+
+    if "/login" not in page.url:
+        page.goto(config.UNIUNI_PORTAL_URL, wait_until="domcontentloaded", timeout=60_000)
+    _dismiss_portal_dialogs(page)
+    username_input, password_input, login_button = _login_inputs(page)
+    try:
+        missing = (
+            username_input.count() == 0
+            or password_input.count() == 0
+            or login_button.count() == 0
+        )
+    except Exception:
+        missing = True
+    if missing:
+        print("Login form not found; waiting for manual login.")
+        return
+
+    print(f"\n=== Auto login as {config.UNIUNI_USERNAME} ===")
+    last_error = "UniMap login did not complete."
+    for attempt in range(1, 4):
+        username_input.fill(config.UNIUNI_USERNAME)
+        password_input.fill(config.UNIUNI_PASSWORD)
+        login_button.click(force=True)
+        try:
+            page.wait_for_url(re.compile(r"dispatch\.uniuni\.com/(main|edit)"), timeout=25_000)
+            _dismiss_portal_dialogs(page)
+            if _portal_logged_in(page):
+                print("Login OK.")
+                return
+        except Exception:
+            pass
+        page.wait_for_timeout(2_000)
+        if _portal_logged_in(page):
+            _dismiss_portal_dialogs(page)
+            print("Login OK.")
+            return
+        login_error = _login_error_message(page)
+        if login_error:
+            raise RuntimeError(
+                f"{login_error} Check UNIUNI_USERNAME and UNIUNI_PASSWORD in .env."
+            )
+        last_error = login_error or last_error
+        if attempt < 3:
+            print(f"  Login attempt {attempt} incomplete, retrying...")
+            page.wait_for_timeout(2_000)
+
+    print(f"  Auto login paused ({last_error}); extra verification may be required.")
+    _wait_for_manual_step(page, "Need manual verification")
+    if not _portal_logged_in(page):
+        raise RuntimeError(
+            f"UniMap login still incomplete. Current url={page.url!r}."
+        )
+    print("Login OK (after manual verification).")
+
+
+def wait_for_manual_login(page: Page) -> None:
+    _dismiss_portal_dialogs(page)
+    if _portal_logged_in(page):
+        print("Already logged in (saved browser session).")
+    elif config.UNIUNI_USERNAME and config.UNIUNI_PASSWORD:
+        _login_with_credentials(page)
+    else:
+        print("\n=== UniUni login ===")
+        print("No UNIUNI_USERNAME / UNIUNI_PASSWORD in .env.")
+        print("Sign in in the opened browser, then press Enter.\n")
+        try:
+            input()
+        except EOFError:
+            pass
+
+    if not _portal_logged_in(page) or "dispatch.uniuni.com" not in page.url:
+        page.goto(config.UNIMAP_URL, wait_until="domcontentloaded")
+        _dismiss_portal_dialogs(page)
+
+    if _find_order_search_input(page, required=False):
+        return
+    try:
+        _click_by_text(page, ["Edit Order", "edit order", "EDIT ORDER"])
+        page.wait_for_timeout(800)
+    except Exception:
+        pass
+    if _find_order_search_input(page, required=False):
+        return
+
+    _wait_for_manual_step(page, "Open EDIT ORDER")
     if not _find_order_search_input(page, required=False):
         raise RuntimeError(
             "Edit Order 未打开。请先手动点橙色 EDIT ORDER，再重新运行。"
@@ -421,7 +591,7 @@ def _click_submit(page: Page, *, within_dialog: bool = False) -> None:
 
 
 def _select_option_in_dialog(page: Page, option_text: str, aliases: List[str]) -> None:
-    """Open dropdown inside popup and choose fail reason (e.g. parcel damaged)."""
+    """Open dropdown inside popup and choose fail reason."""
     dialog = _dialog_root(page)
     try:
         dialog.wait_for(state="visible", timeout=8000)
@@ -615,7 +785,7 @@ def advance_order_to_target(
         ok = status == config.TARGET_STATUS
         if not ok:
             raise PathMismatchError(
-                f"未到达目标 215，停在 {status}，已停止"
+                f"未到达目标 213，停在 {status}，已停止"
             )
         return {
             "ok": True,

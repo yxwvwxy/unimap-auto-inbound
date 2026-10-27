@@ -38,13 +38,18 @@ else:
     LOCAL_CSV_PATH = None
 
 UNIMAP_URL = env("UNIMAP_URL", "https://dispatch.uniuni.com/main")
+UNIUNI_PORTAL_URL = (
+    os.getenv("UNIUNI_PORTAL_URL", "https://dispatch.uniuni.com/login").rstrip("/") + "/"
+)
+UNIUNI_USERNAME = os.getenv("UNIUNI_USERNAME", "").strip()
+UNIUNI_PASSWORD = os.getenv("UNIUNI_PASSWORD", "").strip()
 BROWSER_PROFILE_DIR = Path(
     env("BROWSER_PROFILE_DIR", str(ROOT / ".browser-profile"))
 ).expanduser()
 if not BROWSER_PROFILE_DIR.is_absolute():
     BROWSER_PROFILE_DIR = (ROOT / BROWSER_PROFILE_DIR).resolve()
 
-TARGET_STATUS = 215
+TARGET_STATUS = 213
 OPERATION_LOCATION = "NJ Warehouse"
 OPERATION_LOCATION_ALIASES = [
     "NJ Warehouse",
@@ -58,10 +63,10 @@ NETWORK_NODE_ALIASES = [
     "WH JFK-005",
     "WH_JFK_005",
 ]
-FAIL_REASON = "parcel damaged"
+FAIL_REASON = "package rejected by recipient"
 FAIL_REASON_ALIASES = [
-    "PARCEL_DAMAGED",
-    "parcel damaged",
-    "Parcel Damaged",
-    "PARCEL DAMAGED",
+    "PACKAGE_REJECTED_BY_RECIPIENT",
+    "package rejected by recipient",
+    "Package Rejected By Recipient",
+    "PACKAGE REJECTED BY RECIPIENT",
 ]

@@ -23,11 +23,10 @@ Every step uses the same order: **Next Transition → Operation Location=`NJ War
 | 190 / **255** | gateway processing | Operation Location | 199 |
 | 199 / **195** / **1910** | parcel scan / parcel scanned | Operation Location | 200 |
 | 200 | wrong address cfm in dispatch | Operation Location | 212 |
-| 212 / **202** | deliver parcel apt | Operation Location; after Submit, dialog fail reason=`parcel damaged` | 211 |
+| 212 / **202** | deliver parcel apt | Operation Location; after Submit, dialog fail reason=`package rejected by recipient` | 211 |
 | 211 | send parcel to storage | Operation Location + Network Node=`WH- JFK-005` | 213 |
-| 213 | parcel abandon | Operation Location | 215 |
 
-If the current status is any node in the table, continue from that node along the same path to 215.
+If the current status is any node in the table, continue from that node along the same path to **213**. Already at 213 counts as done.
 
 **Safety:** if the tool hits a status code that was not specified, the status after a step does not match the target in the table, or it cannot find the Next Transition or an extra-field option, it stops immediately and does not process later orders.
 
@@ -45,7 +44,7 @@ playwright install chromium
 
 ## Read a Google Sheet
 
-Pick one of the three options. The default Sheet is `1yrR83W15kKevye87ksYnELUY68i_j4_kIIY_gu0bAWU`. The tool reads **column A** and skips the header.
+Pick one of the three options. The default Sheet is `1yrR83W15kKevye87ksYnELUY68i_j4_kIIY_gu0bAWU`. The tool reads **column A** (tracking number) and **column B** (done checkbox), and skips the header. **Column C (Date)** is filled by hand; the tool never writes it.
 
 1. **Service account (recommended)**
    - Put the JSON file at `credentials/unimap-put-in-storage-google-service-account.json`
@@ -75,7 +74,7 @@ cd ~/Projects/unimap-auto-inbound
 4. In the Sheet, select the column A cell of the order number to start from
 5. Use the menu **Auto inbound → Start from the selected order**
    - Every column A order from that row through the next blank row is written to the visible **Inbound queue** sheet
-   - This machine searches and inbounds in queue order. At **215** it checks the order off and continues to the next one. The browser stays open
+   - This machine searches and inbounds in queue order. At **213** it checks the order off and continues to the next one. The browser stays open
    - To stop, use **Stop continuous run**. The current order finishes, and the remaining pending rows are marked cancelled
    - After the batch, leave the terminal and the browser open. Select another order and use the menu again
 

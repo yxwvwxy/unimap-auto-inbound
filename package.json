@@ -1,7 +1,7 @@
 {
   "name": "unimap-auto-inbound",
   "version": "1.0.0",
-  "description": "Auto-advance UniUni dispatch orders to status 215 via Google Sheet order list",
+  "description": "Auto-advance UniUni dispatch orders to status 213 via Google Sheet order list",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
