@@ -4,6 +4,8 @@
 
 ## About
 
+Manages parcels from storage to redelivery. Inbound: instead of manually clicking through each order, it updates every parcel's status automatically to the desired status. Box assignment: records which physical box each parcel is kept in, by storage code. Locate: uses that record to find a parcel. Search a tracking number or storage code to see its box, and the found parcel is updated for redelivery.
+
 This tool advances parcels into storage so people do not have to click each Next Transition by hand. There is no official API for that workflow, so it runs on a local PC, opens Dispatch, and simulates the same clicks a human would make.
 
 It also covers the later storage flow: assign tracking numbers to a box, look them up by tracking number or storage code, then update a found parcel for redelivery.
